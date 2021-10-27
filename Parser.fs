@@ -200,7 +200,7 @@ let pMulOperator = choose [pchartoken ('*', MUL)]
 
 let rec expression1 = choose [intExp;]
 and expression2 =
-    let addOperatorExp = lazy(
+    let addOperatorExp =
         let exp1 = expression1 .>> pspaces in
         let op = pAddOperator .>> pspaces in
         let exp2 = expression1 in
@@ -209,25 +209,23 @@ and expression2 =
             | ADD -> AST.AddExp(exp1, exp2)
             | SUB -> AST.SubExp(exp1, exp2)
             | MUL -> AST.MulExp(exp1, exp2)
-        )
-    in chooseLazy [addOperatorExp; lazy expression1]
+    in choose [addOperatorExp; expression1]
 and expression3 =
-    let mulOperatorExp = lazy(
-        let exp1 = expression .>> pspaces in
+    let mulOperatorExp =
+        let exp1 = expression2 .>> pspaces in
         let op = pMulOperator .>> pspaces in
-        let exp2 = expression in
+        let exp2 = expression2 in
         concat3 exp1 op exp2 >>= fun (exp1, op, exp2) ->
             match op with
             | ADD -> AST.AddExp(exp1, exp2)
             | SUB -> AST.SubExp(exp1, exp2)
             | MUL -> AST.MulExp(exp1, exp2)
-        )
-    in chooseLazy [(lazyTryP mulOperatorExp); expression2]
+    in choose [(tryP mulOperatorExp); expression2]
 and expression4 = 
-    let parenExp = (pchar '(') >>. pspaces >>.. lazy expression .>> pspaces .>> (pchar ')') in
-    chooseLazy [lazy parenExp; expression3]
+    let parenExp = (pchar '(') >>. pspaces >>. expression3 .>> pspaces .>> (pchar ')') in
+    choose [parenExp; expression3]
 and lazyExpression = expression4
-and expression = expression4.Force()
+and expression = expression4
 
 let reservedVars = ["Out"; "In"]
 
