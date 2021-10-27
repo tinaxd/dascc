@@ -96,6 +96,14 @@ let movFromGPR loc gpr =
     | InPort -> Error("cannot mov to In")
     | GPR(n) -> Ok([Assembly.MOV_B_GPR gpr; Assembly.MOV_GPR_B n])
 
+let moveFromIn loc =
+    match loc with
+    | RegB -> Ok([Assembly.MOV_B_IN])
+    | RegA -> Ok([Assembly.MOV_B_IN; Assembly.MOV_A_B])
+    | OutPort -> Ok([Assembly.MOV_B_IN; Assembly.MOV_OUT_B])
+    | InPort -> Error("cannot mov to In")
+    | GPR(n) -> Ok([Assembly.MOV_B_IN; Assembly.MOV_GPR_B n])
+
 let rec movExpression state (loc : Location) (exp : AST.Expression) =
     match exp with
     | AST.ImmExp(imm) ->
@@ -114,6 +122,10 @@ let rec movExpression state (loc : Location) (exp : AST.Expression) =
         | None -> Error(sprintf "cannot locate variable %A" v)
         | Some(GPR(gpr)) -> movFromGPR loc gpr
         | Some(_) -> raise CompilerException // unreachable
+    | AST.InExp ->
+        moveFromIn loc
+    | AST.OutExp ->
+        Error("cannot mov from Out")
 
 and movSubExp state loc e1 e2 =
     // e2 を RegB で計算

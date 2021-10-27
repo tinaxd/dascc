@@ -226,7 +226,13 @@ let variable =
     >>= Array.ofList
     >>= System.String.Concat
 
-let varExp = variable >>= AST.VarExp
+let varExp =
+    let mayVar name =
+        match name with
+        | "In" -> AST.InExp
+        | "Out" -> AST.OutExp
+        | s -> AST.VarExp(s) in
+    variable >>= mayVar
 
 let rec expression1 =
     let parenExp = lazy ((pchar '(') >>. pspaces >>.. lazyExpression .>> pspaces .>> (pchar ')')) in
