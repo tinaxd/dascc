@@ -14,14 +14,18 @@ let main argv =
     let initState = Compiler.newState in
     //ignore (Compiler.declareVar state "foo")
     match stmts with
-    | Parser.No(e, _) ->
+    | Parser.No(e, lastState) ->
         printfn "%A" e
+        printfn "%A" lastState
         1
     | Parser.Yes(stmts, _) ->
         let result = Compiler.compileStatements initState stmts in
         match result with
-        | Ok(lst, _) ->
+        | Ok(lst, lastState) ->
             printfn "Compilation successful."
+            printfn "Last State: %A" lastState
             List.iter (fun x -> printfn "%A" x) lst
-        | Error(e) -> printf "%A\n" e
+        | Error(e, lastState) ->
+            printfn "%A" e
+            printfn "%A" lastState
         0 // return an integer exit code

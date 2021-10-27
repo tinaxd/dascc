@@ -284,11 +284,7 @@ let assignment =
 let declAssignment =
     let assignee = (pstring "int ") >>. pspaces >>. variable .>> pspaces in
     let exp = (pchar '=') >>. pspaces >>. expression .>> pspaces .>> stmtSep in
-    let makeAST (varname, expr) =
-        match makeStorageAST varname with
-        | None -> raise ParserInternalException
-        | Some(storage) ->
-            AST.Assignment(storage, expr)
+    let makeAST (varname, expr) = AST.VarDeclaration(varname, expr)
     in
     (concat2 assignee exp) >>= makeAST
 
@@ -296,4 +292,4 @@ let declAssignment =
 let statement =
     choose [(tryP declAssignment); assignment]
 
-let program = many statement
+let program = many (pspaces >>. statement .>> pspaces)

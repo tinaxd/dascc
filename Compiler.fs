@@ -88,6 +88,14 @@ let moveFromB loc =
     | OutPort -> [Assembly.MOV_OUT_B]
     | InPort -> raise CompilerException
 
+let movFromGPR loc gpr =
+    match loc with
+    | RegB -> Ok([Assembly.MOV_B_GPR gpr])
+    | RegA -> Ok([Assembly.MOV_B_GPR gpr; Assembly.MOV_A_B])
+    | OutPort -> Ok([Assembly.MOV_B_GPR gpr; Assembly.MOV_OUT_B])
+    | InPort -> Error("cannot mov to In")
+    | GPR(n) -> Ok([Assembly.MOV_B_GPR gpr; Assembly.MOV_GPR_B n])
+
 let rec movExpression state (loc : Location) (exp : AST.Expression) =
     match exp with
     | AST.ImmExp(imm) ->
@@ -101,6 +109,11 @@ let rec movExpression state (loc : Location) (exp : AST.Expression) =
         movSubExp state loc e1 e2
     | AST.MulExp(e1, e2) ->
         movMulExp state loc e1 e2
+    | AST.VarExp(v) ->
+        match resolveLocation state (AST.Variable(v)) with
+        | None -> Error(sprintf "cannot locate variable %A" v)
+        | Some(GPR(gpr)) -> movFromGPR loc gpr
+        | Some(_) -> raise CompilerException // unreachable
 
 and movSubExp state loc e1 e2 =
     // e2 を RegB で計算
@@ -145,21 +158,21 @@ and movMulExp state loc e1 e2 =
 let compileAssignment state store exp =
     match resolveLocation state store with
     | Some(loc) -> movExpression state loc exp
-    | None -> Error("cannot resolve location")
+    | None -> Error(sprintf "cannot resolve location for %A" store)
 
 let compileDeclaration state varname initExp =
     match registerVariable state varname with
     | (Some(gpr), newState) ->
         match movExpression newState (GPR(gpr)) initExp with
         | Ok(mov) -> Ok(mov, newState)
-        | Error(e) -> Error(e)
-    | (None, newState) -> Error("cannot allocate variable on register")
+        | Error(e) -> Error(e, newState)
+    | (None, newState) -> Error("cannot allocate variable on register", newState)
 
 let compileStatement state stmt =
     let inject newState result =
         match result with
         | Ok(r) -> Ok(r, newState)
-        | Error(e) -> Error(e) in
+        | Error(e) -> Error(e, newState) in
     match stmt with
     | AST.Assignment(storage, exp) -> inject state (compileAssignment state storage exp)
     | AST.VarDeclaration(varname, initExp) -> compileDeclaration state varname initExp
@@ -171,5 +184,5 @@ let compileStatements state stmts =
         | x::xs ->
             match compileStatement newState x with
             | Ok(r, ns) -> inter ns xs (List.append acc r)
-            | Error(e) -> Error(e)
+            | Error(e, ns) -> Error(e, ns)
     in inter state stmts []
