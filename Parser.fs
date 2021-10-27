@@ -77,12 +77,12 @@ let tryP p : Parser<'a> =
         | No(e, _) -> No(e, txt) // No with the old state
     in parse
 
-let lazyTryP (p : Lazy<Parser<'a>>) : Lazy<Parser<'a>> =
+let lazyTryP (p : Lazy<Parser<'a>>) : Parser<'a> =
     let parse txt =
         match p.Force() txt with
         | Yes(_) as y -> y
         | No(e, _) -> No(e, txt)
-    in lazy parse
+    in parse
 
 let choose ps : Parser<'a> =
     let parse txt =
@@ -96,7 +96,7 @@ let choose ps : Parser<'a> =
         in chooseInter ps txt
     in parse
 
-let chooseLazy ps : Lazy<Parser<'a>> =
+let chooseLazy ps : Parser<'a> =
     let parse txt =
         let rec chooseInter (ps : Lazy<Parser<'a>> list) txt =
             match ps with
@@ -106,7 +106,7 @@ let chooseLazy ps : Lazy<Parser<'a>> =
                 | Yes(_) as y -> y
                 | No(_, rest) -> chooseInter xs rest
         in chooseInter ps txt
-    in lazy parse
+    in parse
 
 let concat ps : Parser<'a list> =
     let parse txt =
@@ -198,34 +198,39 @@ let pOperator =
 let pAddOperator = choose [pchartoken ('+', ADD); pchartoken ('-', SUB)]
 let pMulOperator = choose [pchartoken ('*', MUL)]
 
-let rec expression1 = choose [intExp;]
-and expression2 =
-    let addOperatorExp =
-        let exp1 = expression1 .>> pspaces in
+let rec expression1 = lazy (choose [intExp;])
+and expression2 = lazy(
+    let addOperatorExp = lazy(
+        let exp1 = expression1.Force() .>> pspaces in
         let op = pAddOperator .>> pspaces in
-        let exp2 = expression1 in
+        let exp2 = expression1.Force() in
         concat3 exp1 op exp2 >>= fun (exp1, op, exp2) ->
             match op with
             | ADD -> AST.AddExp(exp1, exp2)
             | SUB -> AST.SubExp(exp1, exp2)
             | MUL -> AST.MulExp(exp1, exp2)
-    in choose [addOperatorExp; expression1]
-and expression3 =
-    let mulOperatorExp =
-        let exp1 = expression2 .>> pspaces in
+        )
+    in chooseLazy [lazy (lazyTryP addOperatorExp); expression1]
+    )
+and expression3 = lazy(
+    let mulOperatorExp = lazy(
+        let exp1 = expression2.Force() .>> pspaces in
         let op = pMulOperator .>> pspaces in
-        let exp2 = expression2 in
+        let exp2 = expression2.Force() in
         concat3 exp1 op exp2 >>= fun (exp1, op, exp2) ->
             match op with
             | ADD -> AST.AddExp(exp1, exp2)
             | SUB -> AST.SubExp(exp1, exp2)
             | MUL -> AST.MulExp(exp1, exp2)
-    in choose [(tryP mulOperatorExp); expression2]
-and expression4 = 
-    let parenExp = (pchar '(') >>. pspaces >>. expression3 .>> pspaces .>> (pchar ')') in
-    choose [parenExp; expression3]
+        )
+    in chooseLazy [lazy (lazyTryP mulOperatorExp); expression2]
+    )
+and expression4 = lazy(
+    let parenExp = lazy ((pchar '(') >>. pspaces >>. expression3.Force() .>> pspaces .>> (pchar ')')) in
+    chooseLazy [parenExp; expression3]
+    )
 and lazyExpression = expression4
-and expression = expression4
+and expression = expression4.Force()
 
 let reservedVars = ["Out"; "In"]
 
