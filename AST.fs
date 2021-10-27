@@ -14,5 +14,5 @@ type Storage =
 
 type Statement =
     | Assignment of Storage * Expression
-    | VarDeclaration of string
-    | Conditional of Expression * List<Statement> * List<Statement> option
+    | VarDeclaration of string * Expression
+//    | Conditional of Expression * List<Statement> * List<Statement> option

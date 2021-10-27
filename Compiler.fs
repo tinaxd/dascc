@@ -35,13 +35,13 @@ let useTempRegister state =
 let registerVariable state varname =
     let availables = findFreeRegisters state in
     match availables with
-    | [] -> state
+    | [] -> (None, state)
     | x::_ ->
-        {
+        (Some(x), {
             state with
                 Variables = Map.add varname (GPR(x)) state.Variables;
                 UsedRegisters = Set.add x state.UsedRegisters;
-        }
+        })
 
 let immediateMover loc =
         match loc with
@@ -146,3 +146,30 @@ let compileAssignment state store exp =
     match resolveLocation state store with
     | Some(loc) -> movExpression state loc exp
     | None -> Error("cannot resolve location")
+
+let compileDeclaration state varname initExp =
+    match registerVariable state varname with
+    | (Some(gpr), newState) ->
+        match movExpression newState (GPR(gpr)) initExp with
+        | Ok(mov) -> Ok(mov, newState)
+        | Error(e) -> Error(e)
+    | (None, newState) -> Error("cannot allocate variable on register")
+
+let compileStatement state stmt =
+    let inject newState result =
+        match result with
+        | Ok(r) -> Ok(r, newState)
+        | Error(e) -> Error(e) in
+    match stmt with
+    | AST.Assignment(storage, exp) -> inject state (compileAssignment state storage exp)
+    | AST.VarDeclaration(varname, initExp) -> compileDeclaration state varname initExp
+
+let compileStatements state stmts =
+    let rec inter newState stmts acc =
+        match stmts with
+        | [] -> Ok(acc, newState)
+        | x::xs ->
+            match compileStatement newState x with
+            | Ok(r, ns) -> inter ns xs (List.append acc r)
+            | Error(e) -> Error(e)
+    in inter state stmts []

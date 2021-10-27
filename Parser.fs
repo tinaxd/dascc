@@ -295,3 +295,5 @@ let declAssignment =
 
 let statement =
     choose [(tryP declAssignment); assignment]
+
+let program = many statement
