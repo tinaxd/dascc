@@ -5,6 +5,7 @@ type Expression =
     | AddExp of Expression * Expression
     | SubExp of Expression * Expression
     | MulExp of Expression * Expression
+    | VarExp of string
 
 type Storage =
     | Variable of string

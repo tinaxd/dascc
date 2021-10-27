@@ -44,6 +44,26 @@ let pchar ch : Parser<char> =
                     else No("char mismatch", txt)
     in parse
 
+let pAsciiChar : Parser<char> =
+    let parse txt =
+        if sEmpty txt
+            then No("empty txt", txt)
+            else
+                if System.Char.IsLetterOrDigit(char txt.[0])
+                    then Yes(txt.[0], txt.[1..])
+                    else No("not a ascii char", txt)
+    in parse
+
+let pAsciiNonDigit : Parser<char> =
+    let parse txt =
+        if sEmpty txt
+            then No("empty txt", txt)
+            else
+                if System.Char.IsLetter(char txt.[0])
+                    then Yes(txt.[0], txt.[1..])
+                    else No("not a ascii char", txt)
+    in parse
+
 let pchartoken (ch, token) =
     pchar ch >>= (fun _ -> token)
 
@@ -187,6 +207,8 @@ let intExp =
         AST.ImmExp(num)
     in pdigits >>= lstToInt
 
+let stmtSep = pchar ';'
+
 type OperatorChar =
     | ADD
     | SUB
@@ -198,23 +220,20 @@ let pOperator =
 let pAddOperator = choose [pchartoken ('+', ADD); pchartoken ('-', SUB)]
 let pMulOperator = choose [pchartoken ('*', MUL)]
 
-let rec expression1 = lazy (choose [intExp;])
+let variable =
+    concat2 pAsciiNonDigit (many pAsciiChar)
+    >>= fun (first, rest) -> first::rest
+    >>= Array.ofList
+    >>= System.String.Concat
+
+let varExp = variable >>= AST.VarExp
+
+let rec expression1 =
+    let parenExp = lazy ((pchar '(') >>. pspaces >>.. lazyExpression .>> pspaces .>> (pchar ')')) in
+    lazy (chooseLazy[parenExp; lazy intExp; lazy varExp;])
 and expression2 = lazy(
-    let addOperatorExp = lazy(
-        let exp1 = expression1.Force() .>> pspaces in
-        let op = pAddOperator .>> pspaces in
-        let exp2 = expression1.Force() in
-        concat3 exp1 op exp2 >>= fun (exp1, op, exp2) ->
-            match op with
-            | ADD -> AST.AddExp(exp1, exp2)
-            | SUB -> AST.SubExp(exp1, exp2)
-            | MUL -> AST.MulExp(exp1, exp2)
-        )
-    in chooseLazy [lazy (lazyTryP addOperatorExp); expression1]
-    )
-and expression3 = lazy(
     let mulOperatorExp = lazy(
-        let exp1 = expression2.Force() .>> pspaces in
+        let exp1 = expression1.Force() .>> pspaces in
         let op = pMulOperator .>> pspaces in
         let exp2 = expression2.Force() in
         concat3 exp1 op exp2 >>= fun (exp1, op, exp2) ->
@@ -223,14 +242,23 @@ and expression3 = lazy(
             | SUB -> AST.SubExp(exp1, exp2)
             | MUL -> AST.MulExp(exp1, exp2)
         )
-    in chooseLazy [lazy (lazyTryP mulOperatorExp); expression2]
+    in chooseLazy [lazy (lazyTryP mulOperatorExp); expression1]
     )
-and expression4 = lazy(
-    let parenExp = lazy ((pchar '(') >>. pspaces >>. expression3.Force() .>> pspaces .>> (pchar ')')) in
-    chooseLazy [parenExp; expression3]
+and expression3 = lazy(
+    let addOperatorExp = lazy(
+        let exp1 = expression2.Force() .>> pspaces in
+        let op = pAddOperator .>> pspaces in
+        let exp2 = expression3.Force() in
+        concat3 exp1 op exp2 >>= fun (exp1, op, exp2) ->
+            match op with
+            | ADD -> AST.AddExp(exp1, exp2)
+            | SUB -> AST.SubExp(exp1, exp2)
+            | MUL -> AST.MulExp(exp1, exp2)
+        )
+    in chooseLazy [lazy (lazyTryP addOperatorExp); expression2]
     )
-and lazyExpression = expression4
-and expression = expression4.Force()
+and lazyExpression = expression3
+and expression = expression3.Force()
 
 let reservedVars = ["Out"; "In"]
 
@@ -240,11 +268,11 @@ let makeStorageAST outOrIn =
     match outOrIn with
     | "Out" -> Some(AST.OutPort)
     | "In" -> Some(AST.InPort)
-    | _ -> None
+    | s -> Some(AST.Variable(s))
 
 let assignment = 
-    let assignee = (pReservedVars .>> pspaces) in
-    let exp = (pchar '=') >>. pspaces >>. expression in
+    let assignee = (variable .>> pspaces) in
+    let exp = (pchar '=') >>. pspaces >>. expression .>> pspaces .>> stmtSep in
     let makeAST (varname, expr) =
         match makeStorageAST varname with
         | None -> raise ParserInternalException
@@ -252,3 +280,18 @@ let assignment =
             AST.Assignment(storage, expr)
     in
     (concat2 assignee exp) >>= makeAST
+
+let declAssignment =
+    let assignee = (pstring "int ") >>. pspaces >>. variable .>> pspaces in
+    let exp = (pchar '=') >>. pspaces >>. expression .>> pspaces .>> stmtSep in
+    let makeAST (varname, expr) =
+        match makeStorageAST varname with
+        | None -> raise ParserInternalException
+        | Some(storage) ->
+            AST.Assignment(storage, expr)
+    in
+    (concat2 assignee exp) >>= makeAST
+
+
+let statement =
+    choose [(tryP declAssignment); assignment]
