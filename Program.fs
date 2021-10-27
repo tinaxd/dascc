@@ -9,8 +9,8 @@ let from whom =
 [<EntryPoint>]
 let main argv =
     let exp =
-        AST.SubExp(
-            AST.ImmExp 1,
+        AST.AddExp(
+            AST.ImmExp 4,
             AST.SubExp(
                 AST.ImmExp 2,
                 AST.ImmExp 3
@@ -20,6 +20,6 @@ let main argv =
     //ignore (Compiler.declareVar state "foo")
     let result = Compiler.compileAssignment state (AST.OutPort) exp
     match result with
-    | Some(lst) -> printf "%A\n"lst
-    | None -> printf "None\n"
+    | Ok(lst) -> printf "%A\n" lst
+    | Error(e) -> printf "%A\n" e
     0 // return an integer exit code

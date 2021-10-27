@@ -16,7 +16,7 @@ type Instruction =
     | MOV_OUT_Imm of Immediate
     | MOV_OUT_B
     | MOV_B_GPR of RegisterNumber
-    | MOV_GRP_B of RegisterNumber
+    | MOV_GPR_B of RegisterNumber
     | SUB_A_B
     | MULT_A_B
     | JNC_Imm of Immediate
