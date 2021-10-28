@@ -24,7 +24,7 @@ let main argv =
         | Ok(lst, lastState) ->
             printfn "Compilation successful."
             printfn "Last State: %A" lastState
-            List.iter (fun x -> printfn "%A" x) lst
+            List.iter (fun x -> printfn "%X (%A)" (Assembly.asBin x) x) lst
         | Error(e, lastState) ->
             printfn "%A" e
             printfn "%A" lastState
